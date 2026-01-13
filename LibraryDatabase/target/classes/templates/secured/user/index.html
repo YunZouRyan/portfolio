@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="https://www.thymeleaf.org"
+      xmlns:sec="https://www.thymeleaf.org/thymeleaf-extras-springsecurity5">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+    <h1>Welcome to the Library Database</h1>
+    <div th:replace="fragments/display-books.html"></div>
+    <br>
+    <div sec:authorize="hasRole('ROLE_ADMIN')">
+        <a href="#" th:href="@{/admin/addBook}">Add a Book</a></p>
+    </div>
+    <p>Authenticate <a href="#" th:href="@{/secured}">here</a></p>
+    <div th:replace="fragments/logout.html"></div>
+</body>
+</html>

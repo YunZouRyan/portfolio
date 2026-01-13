@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="https://www.thymeleaf.org"
+      xmlns:sec="https://www.thymeleaf.org/thymeleaf-extras-springsecurity5">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+
+
+    <div th:if="${message}" class="error">
+        <p th:text="${message}" style="color: red;"></p>
+    </div>
+
+    <p>User's Name: <span sec:authentication="name"></span></p>
+    <p>Roles: <span sec:authentication="principal.authorities"></span></p>
+
+    <div sec:authorize="hasRole('ROLE_USER')">
+        <a href="#" th:href="@{/user}">View Books</a>
+    </div>
+    <br>
+    <div sec:authorize="hasRole('ROLE_ADMIN')">
+        <a href="#" th:href="@{/admin/addBook}">Add a Book</a></p>
+    </div>
+    <br>
+    <div th:replace="fragments/logout.html"></div>
+</body>
+</html>

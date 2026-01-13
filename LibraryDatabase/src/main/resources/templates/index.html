@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="https://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+    <h1>Welcome to the Library Database</h1>
+
+    <div th:if="${message}" class="error">
+        <p th:text="${message}"	style="color: red;"/>
+    </div>
+
+    <div th:replace="fragments/display-books.html"></div>
+
+    <p>Login <a href="/login">here</a></p>
+    <p>Register <a href="/register">here</a></p>
+</body>
+</html>

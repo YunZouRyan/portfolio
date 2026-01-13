@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html xmlns:th="https://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="../static/js/script.js" th:src="@{/js/script.js}"></script>
+</head>
+<body>
+    <h1>Register Your Account</h1>
+
+    <div id="error" class="error"></div>
+
+    <form name="form" action="#" th:action="@{/addUser}" method="post" onsubmit="return verify()">
+        <table>
+            <tr>
+                <td>Choose your username:</td>
+                <td><input type="text" name="userName"/></td>
+            </tr>
+            <tr>
+                <td>Choose your password:</td>
+                <td><input type="text" name="password"/></td>
+            </tr>
+            <tr th:each="authority : ${authorities}">
+                <td><label th:for="${authority}" th:text="${authority}"></label></td>
+                <td><input type="checkbox" name="authorities" th:value="${authority}" th:id="${authority}"></td>
+            </tr>
+            <tr>
+                <td colspan="2"><input type="submit" value="Register"></td>
+            </tr>
+        </table>
+    </form>
+    <br>
+    <p><a href="#" th:href="@{/}">Back to Index</a></p>
+</body>
+</html>

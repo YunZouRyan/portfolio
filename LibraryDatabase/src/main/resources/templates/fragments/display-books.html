@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="https://www.thymeleaf.org"
+      xmlns:sec="https://www.thymeleaf.org/thymeleaf-extras-springsecurity5">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <link th:href="@{/css/table.css}" rel="stylesheet" />
+</head>
+<body>
+<div>
+    <table>
+        <tr>
+            <th>Title</th>
+            <th>Author</th>
+            <th>See Reviews</th>
+        </tr>
+        <tr th:each="book : ${books}">
+            <td th:text="${book.title}"></td>
+            <td th:text="${book.author}"></td>
+            <td sec:authorize="isAnonymous()"><a href="#" th:href="|/viewReviews/${book.id}|">View</a></td>
+            <td sec:authorize="isAuthenticated()"><a href="#" th:href="|/user/viewReviews/${book.id}|">View</a></td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

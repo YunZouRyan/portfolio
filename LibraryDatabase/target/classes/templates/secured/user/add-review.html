@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="https://www.thymeleaf.org"
+      xmlns:sec="https://www.thymeleaf.org/thymeleaf-extras-springsecurity5">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+    <h1>Add your review!</h1>
+    <form action="#" th:action="@{/user/postReview}" method="post" th:object="${review}">
+        <p>Write your review</p>
+        <input type="hidden" th:field="*{bookId}" th:value="${bookToReviewId}">
+        <textarea th:field="*{text}" cols="30" rows="10"></textarea>
+        <input type="submit" value="Add Review">
+    </form>
+    <br>
+    <div th:replace="fragments/logout.html"></div>
+    <br>
+    <div th:replace="fragments/back-to-index.html"></div>
+</body>
+</html>
