@@ -1,3 +1,5 @@
+Auto repair shop management app utilizing .NET and SQL database.
+
 # Building
 
 ## css
