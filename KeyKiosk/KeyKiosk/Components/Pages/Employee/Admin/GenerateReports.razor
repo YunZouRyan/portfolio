@@ -1,0 +1,253 @@
+﻿@page "/employee/admin/generatereports"
+@using KeyKiosk.Data
+@rendermode InteractiveServer
+@layout Layout.MainLayout
+@attribute [Authorize("Desktop")]
+@attribute [Authorize("RoleAdmin")]
+
+<link href="DesktopShared.css" rel="stylesheet" />
+<link href="GenerateReports.css" rel="stylesheet" />
+
+<PageTitle>Generate Reports</PageTitle>
+
+<h1>Generate Reports</h1>
+
+@* Input fields for report generation *@
+<div class="report-filters">
+    <div>
+        <label class="muted">Start Date</label>
+        <InputDate @bind-Value="StartDate" class="table-input" />
+    </div>
+    <div>
+        <label class="muted">End Date</label>
+        <InputDate @bind-Value="EndDate" class="table-input" />
+    </div>
+    <div>
+        <label class="muted">Customer Name</label>
+        <input class="table-input" @bind="CustomerName" />
+    </div>
+    <div>
+        <label class="muted">Vehicle Plate</label>
+        <input class="table-input" @bind="VehicleLicensePlate" />
+    </div>
+    <div>
+        <label class="muted">Employee Name</label>
+        <input class="table-input" @bind="EmployeeName" />
+    </div>
+</div>
+
+<!-- Action panels -->
+@* Buttons for generating reports *@
+<div class="report-panels">
+    
+    @* Preview *@
+    <section class="report-card" aria-labelledby="preview-title">
+        <h2 id="preview-title">Preview Reports</h2>
+        <div class="btn-grid">
+            <button class="btn-primary" @onclick="GenerateEfficiencyReport" disabled="@IsBusy">Efficiency</button>
+            <button class="btn-primary" @onclick="GenerateWorkOrdersReport" disabled="@IsBusy">Work Orders</button>
+            <button class="btn-primary" @onclick="GenerateCustomerHistoryReport" disabled="@IsBusy">Customer History</button>
+            <button class="btn-primary" @onclick="GenerateVehicleHistoryReport" disabled="@IsBusy">Vehicle History</button>
+            <button class="btn-primary" @onclick="GenerateTopTasksReport" disabled="@IsBusy">Popular Tasks</button>
+            <button class="btn-primary" @onclick="GeneratePartsReport" disabled="@IsBusy">Parts Expense</button>
+            <button class="btn-primary" @onclick="GenerateRevenueReport" disabled="@IsBusy">Revenue</button>
+            <button class="btn-primary" @onclick="GenerateMechanicProductivityReport" disabled="@IsBusy">Mechanic Productivity</button>
+        </div>
+    </section>
+
+    @* Download *@
+    <section class="report-card" aria-labelledby="download-title">
+        <h2 id="download-title">Download Reports</h2>
+        <div class="btn-grid">
+            <button class="btn-primary" @onclick="DownloadEfficiencyReport" disabled="@IsBusy">Efficiency</button>
+            <button class="btn-primary" @onclick="DownloadWorkOrdersReport" disabled="@IsBusy">Work Orders</button>
+            <button class="btn-primary" @onclick="DownloadCustomerHistoryReport" disabled="@IsBusy">Customer History</button>
+            <button class="btn-primary" @onclick="DownloadVehicleHistoryReport" disabled="@IsBusy">Vehicle History</button>
+            <button class="btn-primary" @onclick="DownloadTopTasksReport" disabled="@IsBusy">Popular Tasks</button>
+            <button class="btn-primary" @onclick="DownloadPartsReport" disabled="@IsBusy">Parts Expense</button>
+            <button class="btn-primary" @onclick="DownloadRevenueReport" disabled="@IsBusy">Revenue</button>
+            <button class="btn-primary" @onclick="DownloadMechanicProductivityReport" disabled="@IsBusy">Mechanic Productivity</button>
+        </div>
+    </section>
+</div>
+
+
+@if (!string.IsNullOrEmpty(ErrorMessage))
+{
+    <div class="error-message">@ErrorMessage</div>
+}
+
+
+@code {
+    // Input values
+    public DateTimeOffset StartDate { get; set; } = DateTimeOffset.Now.Date;
+    public DateTimeOffset EndDate { get; set; } = DateTimeOffset.Now.Date;
+    public string CustomerName { get; set; } = "";
+    public string EmployeeName { get; set; } = "";
+    public string VehicleLicensePlate { get; set; } = "";
+
+    // UI state
+    private bool IsBusy { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    // Services
+    [Inject] private WorkOrderService WorkOrderService { get; set; } = default!;
+    [Inject] private WorkOrderTaskService TaskService { get; set; } = default!;
+    [Inject] private WorkOrderPartService PartService { get; set; } = default!;
+    [Inject] private WorkOrderTaskTemplateService TemplateService { get; set; } = default!;
+    [Inject] private PreviewDownloadService PreviewDownloadService { get; set; } = default!;
+    [Inject] private WorkOrderLogService WorkOrderLogService { get; set; } = default!;
+
+
+    /// <summary>
+    /// Normalize to whole-day range and validate
+    /// </summary>
+    /// <param name="start">Start date for data filtering</param>
+    /// <param name="end">End date for data filtering</param>
+    /// <returns>True if no errors</returns>
+    private bool TryGetRange(out DateTimeOffset start, out DateTimeOffset end)
+    {
+        ErrorMessage = null;
+
+        start = new DateTimeOffset(StartDate.Date, StartDate.Offset);                // 00:00:00 local
+        end = new DateTimeOffset(EndDate.Date, EndDate.Offset).AddDays(1).AddTicks(-1); // 23:59:59.9999999 local
+
+        if (end < start)
+        {
+            ErrorMessage = "End Date must be on or after Start Date.";
+            return false;
+        }
+        return true;
+    }
+
+    private async Task Run(Func<Task> action)
+    {
+        if (IsBusy) return;
+        IsBusy = true;
+        ErrorMessage = null;
+        try { await action(); }
+        catch (Exception ex) { ErrorMessage = ex.Message; }
+        finally { IsBusy = false; }
+    }
+
+    // Previews Reports
+    #region Preview Reports
+    private Task GenerateEfficiencyReport() => Run(async () =>
+    {
+        if (!TryGetRange(out var s, out var e)) return;
+        var workOrders = await WorkOrderService.GetWorkOrderByDatePeriod(s, e);
+        var templates = TemplateService.GetAllTaskTemplates();
+        await PreviewDownloadService.PreviewEfficiencyReportAsync(workOrders, templates, s, e);
+    });
+
+    private Task GenerateWorkOrdersReport() => Run(async () =>
+    {
+        if (!TryGetRange(out var s, out var e)) return;
+        var workOrders = await WorkOrderService.GetWorkOrderByDatePeriod(s, e);
+        await PreviewDownloadService.PreviewWorkOrdersReportAsync(workOrders, s, e);
+    });
+
+    private Task GenerateCustomerHistoryReport() => Run(async () =>
+    {
+        var name = (CustomerName ?? string.Empty).Trim();
+        var workOrders = await WorkOrderService.GetWorkOrdersByCustomerNameAsync(name);
+        await PreviewDownloadService.PreviewCustomerHistoryReportAsync(workOrders, name);
+    });
+
+    private Task GenerateVehicleHistoryReport() => Run(async () =>
+    {
+        var plate = (VehicleLicensePlate ?? string.Empty).Trim();
+        var workOrders = await WorkOrderService.GetWorkOrdersByVehiclePlateAsync(plate);
+        await PreviewDownloadService.PreviewVehicleHistoryReportAsync(workOrders, plate);
+    });
+
+    private Task GenerateTopTasksReport() => Run(async () =>
+    {
+        if (!TryGetRange(out var s, out var e)) return;
+        var tasks = await TaskService.GetTasksByDatePeriod(s, e);
+        await PreviewDownloadService.PreviewTopTasksReportAsync(tasks, s, e);
+    });
+
+    private Task GeneratePartsReport() => Run(async () =>
+    {
+        if (!TryGetRange(out var s, out var e)) return;
+        var parts = await PartService.GetPartsByDatePeriod(s, e);
+        await PreviewDownloadService.PreviewPartsExpenseReportAsync(parts, s, e);
+    });
+
+    private Task GenerateRevenueReport() => Run(async () =>
+    {
+        if (!TryGetRange(out var s, out var e)) return;
+        var workOrders = await WorkOrderService.GetWorkOrderByDatePeriod(s, e);
+        await PreviewDownloadService.PreviewRevenueReportAsync(workOrders, s, e);
+    });
+
+    private Task GenerateMechanicProductivityReport() => Run(async () =>
+    {
+        List<WorkOrderLogEvent> workOrderLogs = await WorkOrderLogService.GetWorkOrderLogsByUsernameDatePeriod(EmployeeName, StartDate, EndDate);
+
+        await PreviewDownloadService.PreviewMechanicProductivityReportAsync(workOrderLogs, StartDate, EndDate, EmployeeName);
+    });
+
+    #endregion
+
+    // Downloads Reports
+    #region Download Reports
+    private Task DownloadEfficiencyReport() => Run(async () =>
+    {
+        if (!TryGetRange(out var s, out var e)) return;
+        var workOrders = await WorkOrderService.GetWorkOrderByDatePeriod(s, e);
+        var templates = TemplateService.GetAllTaskTemplates();
+        await PreviewDownloadService.DownloadEfficiencyReportAsync(workOrders, templates, s, e);
+    });
+
+    private Task DownloadWorkOrdersReport() => Run(async () =>
+    {
+        if (!TryGetRange(out var s, out var e)) return;
+        var workOrders = await WorkOrderService.GetWorkOrderByDatePeriod(s, e);
+        await PreviewDownloadService.DownloadWorkOrdersReportAsync(workOrders, s, e);
+    });
+
+    private Task DownloadCustomerHistoryReport() => Run(async () =>
+    {
+        var name = (CustomerName ?? string.Empty).Trim();
+        var workOrders = await WorkOrderService.GetWorkOrdersByCustomerNameAsync(name);
+        await PreviewDownloadService.DownloadCustomerHistoryReportAsync(workOrders, name);
+    });
+
+    private Task DownloadVehicleHistoryReport() => Run(async () =>
+    {
+        var plate = (VehicleLicensePlate ?? string.Empty).Trim();
+        var workOrders = await WorkOrderService.GetWorkOrdersByVehiclePlateAsync(plate);
+        await PreviewDownloadService.DownloadVehicleHistoryReportAsync(workOrders, plate);
+    });
+
+    private Task DownloadTopTasksReport() => Run(async () =>
+    {
+        if (!TryGetRange(out var s, out var e)) return;
+        var tasks = await TaskService.GetTasksByDatePeriod(s, e);
+        await PreviewDownloadService.DownloadTopTasksReportAsync(tasks, s, e);
+    });
+
+    private Task DownloadPartsReport() => Run(async () =>
+    {
+        if (!TryGetRange(out var s, out var e)) return;
+        var parts = await PartService.GetPartsByDatePeriod(s, e);
+        await PreviewDownloadService.DownloadPartsExpenseReportAsync(parts, s, e);
+    });
+
+    private Task DownloadRevenueReport() => Run(async () =>
+    {
+        if (!TryGetRange(out var s, out var e)) return;
+        var workOrders = await WorkOrderService.GetWorkOrderByDatePeriod(s, e);
+        await PreviewDownloadService.DownloadRevenueReportAsync(workOrders, s, e);
+    });
+
+    private Task DownloadMechanicProductivityReport() => Run(async () =>
+    {
+        List<WorkOrderLogEvent> workOrderLogs = await WorkOrderLogService.GetWorkOrderLogsByUsernameDatePeriod(EmployeeName, StartDate, EndDate);
+
+        await PreviewDownloadService.DownloadMechanicProductivityReportAsync(workOrderLogs, StartDate, EndDate, EmployeeName);
+    }); 
+    #endregion
+}

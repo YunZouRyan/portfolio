@@ -1,0 +1,44 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!--<TargetFramework>net9.0</TargetFramework>-->
+	 <TargetFramework>net9.0-windows</TargetFramework> <!-- Temp so that the hardware sim will work -->
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>bade79bb-5554-4aee-aaa7-89aeb45ba453</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Components\Layout\NewFolder1\**" />
+    <Compile Remove="Components\Layout\NewFolder\**" />
+    <Content Remove="Components\Layout\NewFolder1\**" />
+    <Content Remove="Components\Layout\NewFolder\**" />
+    <EmbeddedResource Remove="Components\Layout\NewFolder1\**" />
+    <EmbeddedResource Remove="Components\Layout\NewFolder\**" />
+    <None Remove="Components\Layout\NewFolder1\**" />
+    <None Remove="Components\Layout\NewFolder\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="wwwroot\js\Site.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.9">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="MudBlazor" Version="8.13.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <PackageReference Include="QuestPDF" Version="2025.7.3" />
+    <PackageReference Include="System.IO.Ports" Version="9.0.9" />
+	  <PackageReference Include="WSCT.Wrapper.Desktop" Version="1.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HardwareSimulator\HardwareSimulator.csproj" />
+  </ItemGroup>
+
+</Project>

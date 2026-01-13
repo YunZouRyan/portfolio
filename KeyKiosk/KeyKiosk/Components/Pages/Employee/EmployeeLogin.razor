@@ -1,0 +1,95 @@
+﻿@page "/employee/login"
+@rendermode InteractiveServer
+@layout Layout.MainLayout
+
+@inject NavigationManager Nav
+@inject AppAuthenticationStateProvider session
+
+<link href="EmployeeLogin.css" rel="stylesheet" />
+<link href="DesktopShared.css" rel="stylesheet" />
+
+<PageTitle>Employee Login</PageTitle>
+
+<div class="login-container">
+    <div class="login-card">
+        <h1>Employee Login</h1>
+
+        <!-- Basic login form -->
+        <EditForm Model="@loginModel" OnValidSubmit="OnLogin">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <!-- Username input -->
+            <div class="form-group">
+                <label for="username">Username</label>
+                <InputText id="username" @bind-Value="loginModel.Username" class="input-field" />
+            </div>
+
+            <!-- Password input -->
+            <div class="form-group">
+                <label for="password">Password</label>
+                <InputText id="password" type="password" @bind-Value="loginModel.Password" class="input-field" />
+            </div>
+
+            <!-- Shows error if login fails -->
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <p class="error-message">@errorMessage</p>
+            }
+
+            <button type="submit" class="btn-primary login-btn">Login</button>
+        </EditForm>
+
+        <p class="login-footer">
+            © @DateTime.Now.Year KeyOSk | Secure Access Portal
+        </p>
+    </div>
+</div>
+
+@code {
+
+    // Simple model for the form
+    private LoginModel loginModel = new();
+    private string? errorMessage;
+
+    // Very basic hardcoded auth and redirects
+    private async Task OnLogin()
+    {
+        var username = loginModel.Username;
+        var password = loginModel.Password;
+
+        if (username != null && password != null)
+        {
+
+            var success = await session.LoginDesktopAsync(username, password);
+            if (success)
+            {
+                switch (session.CurrentSession!.User.UserType)
+                {
+                    case Data.UserType.Admin:
+                    case Data.UserType.Manager:
+                        Nav.NavigateTo("/employee/admin/home", forceLoad: true);
+                        break;
+                    case Data.UserType.User:
+                    default:
+                        Nav.NavigateTo("/employee/home", forceLoad: true);
+                        break;
+                }
+            } else
+            {
+                errorMessage = "Invalid username or password.";
+            }
+        }
+        else
+        {
+            // Bad credentials
+            errorMessage = "Missing username or password.";
+        }
+    }
+
+    public class LoginModel
+    {
+        public string Username { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

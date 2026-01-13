@@ -1,0 +1,80 @@
+﻿@page "/kiosk";
+@layout Layout.BlankLayout
+@rendermode InteractiveServer
+@inject NavigationManager navManager
+@inject AppAuthenticationStateProvider session
+@inject IRFIDReader RFIDReader
+@implements IAsyncDisposable
+
+
+<div id="main" @onmousedown="BgClicked">
+    <img id="img" src="/Honda-Poster.png"  />
+</div>
+
+@if (loginVisible)
+{
+    <div @onclick="() => wd.Poke()" id="login" class="fixed left-[50%] top-[50%] w-min z-50 grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg ">
+        <h1 class="text-2xl justify-self-center">Employee Access Only</h1>
+        <PinEntry PinLength="6" @ref=pinEntry OnPinCompleted=@OnPinEntered/>
+    </div>
+}
+
+@code {
+
+    bool loginVisible;
+    PinEntry? pinEntry;
+    WatchDog wd = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        loginVisible = false;
+
+        wd = new WatchDog(15 * 1000, OnTimeout);
+
+        RFIDReader.OnCardScannedEvent += OnCardScanned;
+    }
+
+    void BgClicked(MouseEventArgs args)
+    {
+        // Console.WriteLine(args.Detail);
+        this.loginVisible = !this.loginVisible;
+        wd.Poke();
+        return;
+    }
+
+    public async Task OnPinEntered(string pin)
+    {
+        if (await session.LoginKioskAsync(pin))
+        {
+            navManager.NavigateTo("kiosk/home");
+        } else
+        {
+            pinEntry?.ClearAndShake();
+        }
+    }
+
+    private void OnCardScanned(object? source, OnCardScannedEventArgs e)
+    {
+        if (session.LoginRFIDAsync(e.CardId).Result)
+        {
+            InvokeAsync(() => navManager.NavigateTo("kiosk/home"));
+        }
+    }
+
+    async void OnTimeout()
+    {
+        this.loginVisible = false;
+        // Console.WriteLine("timed out");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        // Console.WriteLine("disposeing");
+        wd.Stop();
+        RFIDReader.OnCardScannedEvent -= OnCardScanned;
+
+        return new();
+    }
+}

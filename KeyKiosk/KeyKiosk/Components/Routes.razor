@@ -1,0 +1,37 @@
+﻿@rendermode InteractiveServer
+@inject NavigationManager navManager
+
+  
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="@typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @{ NotAuthorisedRendered(routeData); }
+            </NotAuthorized>
+            <Authorizing>
+                <div>Authorizing...</div>
+            </Authorizing>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>
+
+@code {
+
+    protected bool isKiosk(RouteData routeData) {
+        // return routeData?.Template?.StartsWith("kiosk") ?? false;
+        return routeData.PageType?.Namespace?.StartsWith("KeyKiosk.Components.Pages.Kiosk") ?? false;
+    }
+
+    protected void NotAuthorisedRendered(RouteData routeData) {
+        if (isKiosk(routeData))
+        {
+            navManager.NavigateTo("/kiosk");
+        } else
+        {
+            navManager.NavigateTo("/");
+        }
+    }
+
+}

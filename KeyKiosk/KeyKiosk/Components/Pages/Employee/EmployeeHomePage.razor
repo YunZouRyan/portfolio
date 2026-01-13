@@ -1,0 +1,560 @@
+﻿@page "/employee/home"
+@rendermode InteractiveServer
+@layout Layout.MainLayout
+@attribute [Authorize("Desktop")]
+
+@using KeyKiosk.Data
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+
+@inject KeyKiosk.Services.WorkOrderAuditService AuditService
+@inject KeyKiosk.Data.ApplicationDbContext DbContext
+@inject KeyKiosk.Services.WorkOrderService WorkOrderService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Nav
+
+<link href="DesktopShared.css" rel="stylesheet" />
+<link href="EmployeeHomeWorkOrders.css" rel="stylesheet" />
+
+<PageTitle>Employee Home</PageTitle>
+<h1 style="text-align:center">Work Orders</h1>
+
+<!-- Search by plate + create button -->
+<div style="display:flex;align-items:center;gap:.75rem;justify-content:space-between;margin:.5rem auto 1rem;max-width:1100px;flex-wrap:wrap;">
+    <EditForm Model="@SearchModel" OnValidSubmit="OnSearchSubmit">
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+            <InputText class="table-input search-plate-input" style="min-width:280px"
+                       placeholder="Search by plate (e.g., ABCD-123)"
+                       @bind-Value="SearchModel.Plate" />
+            <button class="btn-primary" type="submit">Open Details</button>
+            @if (!string.IsNullOrWhiteSpace(SearchError))
+            {
+                <!-- Shows search errors -->
+                <span style="color:#b91c1c;font-size:.9rem;">@SearchError</span>
+            }
+        </div>
+    </EditForm>
+
+    <!-- Opens the create modal -->
+    <button class="btn-primary" @onclick="OpenCreateModal">Create New Work Order</button>
+</div>
+
+@if (WorkOrders is null)
+{
+    <!-- Loading state -->
+    <p class="text-center">Loading…</p>
+}
+else if (WorkOrders.Count > 0)
+{
+    <!-- Pagination (top) -->
+    <div class="pager-bar">
+        <div class="pager-left">
+            <button class="pager-btn" disabled="@(CurrentPage == 1)" @onclick="GoFirst">« First</button>
+            <button class="pager-btn" disabled="@(CurrentPage == 1)" @onclick="GoPrev">‹ Prev</button>
+        </div>
+        <div class="pager-middle">
+            Page @CurrentPage of @TotalPages
+            <span class="pager-sep">|</span>
+            <label>Per page</label>
+            <!-- Changes page size -->
+            <select class="pager-select" @bind="PageSize">
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+            </select>
+            <span class="pager-sep">|</span>
+            <span>@FilteredCount item(s)</span>
+        </div>
+        <div class="pager-right">
+            <button class="pager-btn" disabled="@(CurrentPage == TotalPages)" @onclick="GoNext">Next ›</button>
+            <button class="pager-btn" disabled="@(CurrentPage == TotalPages)" @onclick="GoLast">Last »</button>
+        </div>
+    </div>
+
+    <div class="workorders-table-container">
+        <table class="workorders-table">
+            <thead>
+                <tr>
+                    <th>Id</th>
+                    <th>Customer</th>
+                    <th>Vehicle</th>
+                    <th>Details</th>
+                    <th>Status</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Tasks (#)</th>
+                    <th>Subtotal Cost</th>
+                    <th>Actions</th>
+                </tr>
+
+                <!-- Filter row -->
+                <tr>
+                    <th></th>
+                    <th><input class="table-input" type="text" placeholder="Filter" @bind="FilterCustomer" /></th>
+                    <th><input class="table-input" type="text" placeholder="Filter" @bind="FilterVehicle" /></th>
+                    <th><input class="table-input" type="text" placeholder="Filter" @bind="FilterDetails" /></th>
+                    <th>
+                        <!-- Filter by status -->
+                        <select class="table-select" @bind="FilterStatus">
+                            <option value="">All</option>
+                            @foreach (var status in Enum.GetValues(typeof(WorkOrderStatusType)))
+                            {
+                                <option value="@status">@status</option>
+                            }
+                        </select>
+                    </th>
+                    <!-- Filter by dates -->
+                    <th><input class="table-input" type="date" @bind="FilterStartDate" /></th>
+                    <th><input class="table-input" type="date" @bind="FilterEndDate" /></th>
+                    <th></th>
+                    <th><input class="table-input" type="text" placeholder="Cost" @bind="FilterTotalCost" /></th>
+                    <th></th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @foreach (var workOrder in PagedWorkOrders)
+                {
+                    <tr>
+                        <td>@workOrder.Id</td>
+
+                        <!-- Inline edit: Customer -->
+                        <td>
+                            @if (EditingWorkOrder == workOrder)
+                            {
+                                <input type="text" @bind="workOrder.CustomerName" class="table-input" />
+                            }
+                            else
+                            {
+
+                                @workOrder.CustomerName
+                            }
+                        </td>
+
+                        <!-- Inline edit: Vehicle -->
+                        <td>
+                            @if (EditingWorkOrder == workOrder)
+                            {
+                                <input type="text" @bind="workOrder.VehiclePlate" class="table-input" />
+                            }
+                            else
+                            {
+
+                                @workOrder.VehiclePlate
+                            }
+                        </td>
+
+                        <!-- Inline edit: Details -->
+                        <td>
+                            @if (EditingWorkOrder == workOrder)
+                            {
+                                <input type="text" @bind="workOrder.Details" class="table-input" />
+                            }
+                            else
+                            {
+
+                                @workOrder.Details
+                            }
+                        </td>
+
+                        <!-- Inline edit: Status -->
+                        <td>
+                            @if (EditingWorkOrder == workOrder)
+                            {
+                                <select @bind="workOrder.Status" class="table-select">
+                                    @foreach (var status in Enum.GetValues(typeof(WorkOrderStatusType)))
+                                    {
+                                        <option value="@status">@status</option>
+                                    }
+                                </select>
+                            }
+                            else
+                            {
+
+                                @workOrder.Status
+                            }
+                        </td>
+
+                        <!-- Dates are read-only -->
+                        <td>@FormatDate(workOrder.StartDate)</td>
+                        <td>@FormatDate(workOrder.EndDate)</td>
+
+                        <!-- Calculated columns -->
+                        <td>@(workOrder.Tasks?.Count ?? 0)</td>
+                        <td>@FormatCost(workOrder.TotalCostCents)</td>
+
+                        <!-- Action buttons -->
+                        <td style="white-space:nowrap;">
+                            @if (EditingWorkOrder == workOrder)
+                            {
+                                <button class="save-btn small-btn" @onclick="() => SaveWorkOrderAsync(workOrder)">Save</button>
+                                <button class="cancel-btn small-btn" @onclick="CancelEdit">Cancel</button>
+                            }
+                            else
+                            {
+                                <button class="edit-btn small-btn" @onclick="() => EditWorkOrder(workOrder)">Edit</button>
+                                <button class="btn-primary small-btn" title="Open details"
+                                        @onclick="() => GoToDetails(workOrder.Id)">
+                                    Details
+                                </button>
+                                <button class="btn-primary small-btn" title="Preview PDF"
+                                        @onclick="() => PreviewPdfAsync(workOrder)">
+                                    Preview
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination (bottom) -->
+    <div class="pager-bar">
+        <div class="pager-left">
+            <button class="pager-btn" disabled="@(CurrentPage == 1)" @onclick="GoFirst">« First</button>
+            <button class="pager-btn" disabled="@(CurrentPage == 1)" @onclick="GoPrev">‹ Prev</button>
+        </div>
+        <div class="pager-middle">
+            Page @CurrentPage of @TotalPages
+            <span class="pager-sep">|</span>
+            <label>Per page</label>
+            <select class="pager-select" @bind="PageSize">
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+            </select>
+            <span class="pager-sep">|</span>
+            <span>@FilteredCount item(s)</span>
+        </div>
+        <div class="pager-right">
+            <button class="pager-btn" disabled="@(CurrentPage == TotalPages)" @onclick="GoNext">Next ›</button>
+            <button class="pager-btn" disabled="@(CurrentPage == TotalPages)" @onclick="GoLast">Last »</button>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Empty state -->
+    <div class="card-like" style="padding:1rem;border:1px solid #e5e7eb;border-radius:12px;max-width:760px;margin:0 auto 1rem;">
+        <p style="margin:0;text-align:center;color:#6b7280">
+            No work orders yet. Create your first work order below.
+        </p>
+    </div>
+}
+
+<!-- Create modal -->
+@if (ShowCreateModal)
+{
+    <div class="modal-backdrop" @onclick="CloseCreateModal">
+        <div class="modal-card" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 style="margin:0;">New Work Order</h3>
+                <!-- Closes modal -->
+                <button class="modal-close" title="Close" @onclick="CloseCreateModal">×</button>
+            </div>
+
+            <!-- New work order form -->
+            <EditForm Model="@NewWorkOrder" OnValidSubmit="@CreateWorkOrderAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="modal-grid">
+                    <div>
+                        <label>Customer Name</label>
+                        <InputText class="table-input" @bind-Value="NewWorkOrder.CustomerName" />
+                    </div>
+                    <div>
+                        <label>Vehicle Plate</label>
+                        <InputText class="table-input" @bind-Value="NewWorkOrder.VehiclePlate" />
+                    </div>
+                    <div class="span-2">
+                        <label>Details</label>
+                        <InputText class="table-input" @bind-Value="NewWorkOrder.Details" />
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn-primary" type="submit">Create</button>
+                    <button class="cancel-btn" type="button" @onclick="CloseCreateModal">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "new")]
+    public bool OpenNew { get; set; }
+
+    // In-memory list of work orders for the grid
+    private List<WorkOrder> WorkOrders { get; set; } = new();
+
+    // Tracks which row is being edited
+    private WorkOrder? EditingWorkOrder { get; set; }
+
+    // Keeps originals while editing
+    private WorkOrderStatusType? _originalStatus;
+    private DateTimeOffset? _originalStart;
+    private DateTimeOffset? _originalEnd;
+
+    // Service for preview/download PDF
+    [Inject] private PreviewDownloadService PreviewDownloadService { get; set; } = default!;
+
+    // Download PDF for mechanics
+    private async Task DownloadPdfAsync(WorkOrder workOrder)
+        => await PreviewDownloadService.DownloadMechanicTodoAsync(workOrder);
+
+    // Preview PDF for mechanics
+    private async Task PreviewPdfAsync(WorkOrder workOrder)
+        => await PreviewDownloadService.PreviewMechanicTodoAsync(workOrder);
+
+    // Model for the search bar
+    private class WorkOrderSearch { public string Plate { get; set; } = string.Empty; }
+    private WorkOrderSearch SearchModel { get; set; } = new();
+    private string? SearchError { get; set; }
+
+    // Pagination state
+    private int _pageSize = 10;
+    private int PageSize
+    {
+        get => _pageSize;
+        set { if (value <= 0) value = 10; if (_pageSize != value) { _pageSize = value; CurrentPage = 1; } }
+    }
+    private int CurrentPage { get; set; } = 1;
+
+    // Counts for the pager
+    private int FilteredCount => FilteredWorkOrders.Count();
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredCount / (double)PageSize));
+
+    // Current page slice
+    private IEnumerable<WorkOrder> PagedWorkOrders =>
+        FilteredWorkOrders.Skip((CurrentPage - 1) * PageSize).Take(PageSize);
+
+    // Pager helpers
+    private void ResetToFirstPage() { CurrentPage = 1; StateHasChanged(); }
+    private void GoFirst() { CurrentPage = 1; }
+    private void GoPrev() { if (CurrentPage > 1) CurrentPage--; }
+    private void GoNext() { if (CurrentPage < TotalPages) CurrentPage++; }
+    private void GoLast() { CurrentPage = TotalPages; }
+
+    // Filters (setters reset to page 1)
+    private string _filterCustomer = "";
+    private string _filterVehicle = "";
+    private string _filterDetails = "";
+    private string _filterStatus = "";
+    private DateTime? _filterStartDate;
+    private DateTime? _filterEndDate;
+    private string _filterTotalCost = "";
+
+    private string FilterCustomer { get => _filterCustomer; set { if (_filterCustomer != value) { _filterCustomer = value; ResetToFirstPage(); } } }
+    private string FilterVehicle { get => _filterVehicle; set { if (_filterVehicle != value) { _filterVehicle = value; ResetToFirstPage(); } } }
+    private string FilterDetails { get => _filterDetails; set { if (_filterDetails != value) { _filterDetails = value; ResetToFirstPage(); } } }
+    private string FilterStatus { get => _filterStatus; set { if (_filterStatus != value) { _filterStatus = value; ResetToFirstPage(); } } }
+    private DateTime? FilterStartDate { get => _filterStartDate; set { if (_filterStartDate != value) { _filterStartDate = value; ResetToFirstPage(); } } }
+    private DateTime? FilterEndDate { get => _filterEndDate; set { if (_filterEndDate != value) { _filterEndDate = value; ResetToFirstPage(); } } }
+    private string FilterTotalCost { get => _filterTotalCost; set { if (_filterTotalCost != value) { _filterTotalCost = value; ResetToFirstPage(); } } }
+
+    // Modal flag
+    private bool ShowCreateModal { get; set; } = false;
+
+    // Default new work order model
+    private WorkOrder NewWorkOrder { get; set; } = new()
+    {
+        CustomerName = "",
+        VehiclePlate = "",
+        Details = "",
+        Tasks = new List<WorkOrderTask>(),
+        Parts = new List<WorkOrderPart>(),
+        StartDate = null, // set when work starts
+        EndDate = null,   // set when closed
+        Status = WorkOrderStatusType.Created
+    };
+
+    // Load work orders when page starts
+    protected override async Task OnInitializedAsync()
+    {
+        WorkOrders = await WorkOrderService.GetAllWorkOrdersAsync();
+    }
+
+    // Open modal if URL has ?new=1
+    protected override Task OnParametersSetAsync()
+    {
+        if (OpenNew && !ShowCreateModal)
+        {
+            OpenCreateModal();
+            Nav.NavigateTo("/employee/home", replace: true);
+        }
+        return base.OnParametersSetAsync();
+    }
+
+    // Search submit → navigate to details page
+    private Task OnSearchSubmit()
+    {
+        SearchError = null;
+        var plate = (SearchModel.Plate ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(plate))
+        {
+            SearchError = "Enter a license plate.";
+            return Task.CompletedTask;
+        }
+
+        // Exact match first, then contains
+        var match = WorkOrders.FirstOrDefault(w =>
+            string.Equals(w.VehiclePlate, plate, StringComparison.OrdinalIgnoreCase))
+            ?? WorkOrders.FirstOrDefault(w =>
+                w.VehiclePlate?.Contains(plate, StringComparison.OrdinalIgnoreCase) == true);
+
+        if (match is null)
+        {
+            SearchError = "No work order found for that plate.";
+            return Task.CompletedTask;
+        }
+
+        GoToDetails(match.Id);
+        return Task.CompletedTask;
+    }
+
+    // Go to the tasks/details page
+    private void GoToDetails(int workOrderId)
+        => Nav.NavigateTo($"/employee/workorder/{workOrderId}/tasks");
+
+    // Begin inline edit
+    private void EditWorkOrder(WorkOrder workOrder)
+    {
+        EditingWorkOrder = workOrder;
+        _originalStatus = workOrder.Status;
+        _originalStart = workOrder.StartDate;
+        _originalEnd = workOrder.EndDate;
+    }
+
+    // Cancel inline edit
+    private void CancelEdit()
+    {
+        EditingWorkOrder = null;
+        _originalStatus = null;
+        _originalStart = null;
+        _originalEnd = null;
+    }
+
+    // Save inline edit
+    private async Task SaveWorkOrderAsync(WorkOrder workOrder)
+    {
+        // Applies central status/date rules
+        ApplyWorkOrderStatusDates(_originalStatus, _originalStart, _originalEnd, workOrder);
+
+        await WorkOrderService.UpdateWorkOrderAsync(workOrder);
+
+        EditingWorkOrder = null;
+        _originalStatus = null;
+        _originalStart = null;
+        _originalEnd = null;
+        Snackbar.Add($"Work order {workOrder.Id} updated successfully.", Severity.Success);
+    }
+
+    // Open/close modal
+    private void OpenCreateModal()
+    {
+        NewWorkOrder = new WorkOrder
+        {
+            CustomerName = "",
+            VehiclePlate = "",
+            Details = "",
+            Tasks = new List<WorkOrderTask>(),
+            Parts = new List<WorkOrderPart>(),
+            StartDate = null,
+            EndDate = null,
+            Status = WorkOrderStatusType.Created
+        };
+        ShowCreateModal = true;
+        StateHasChanged();
+    }
+    private void CloseCreateModal() { ShowCreateModal = false; StateHasChanged(); }
+
+    // Create work order from modal
+    private async Task CreateWorkOrderAsync()
+    {
+        // Simple required checks
+        if (string.IsNullOrWhiteSpace(NewWorkOrder.CustomerName) ||
+            string.IsNullOrWhiteSpace(NewWorkOrder.VehiclePlate))
+        {
+            return;
+        }
+
+        // Ensure defaults
+        NewWorkOrder.Status = WorkOrderStatusType.Created;
+        NewWorkOrder.StartDate = null;
+        NewWorkOrder.EndDate = null;
+
+        var created = await WorkOrderService.AddWorkOrderAsync(NewWorkOrder);
+
+        // Refresh list, close modal, go to details
+        WorkOrders = await WorkOrderService.GetAllWorkOrdersAsync();
+        CloseCreateModal();
+        GoToDetails(created.Id);
+    }
+
+    // Applies all filters
+    private IEnumerable<WorkOrder> FilteredWorkOrders => WorkOrders
+        .Where(w =>
+            (string.IsNullOrWhiteSpace(FilterCustomer) || w.CustomerName.Contains(FilterCustomer, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(FilterVehicle) || w.VehiclePlate.Contains(FilterVehicle, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(FilterDetails) || w.Details.Contains(FilterDetails, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(FilterStatus) || w.Status.ToString() == FilterStatus) &&
+            (!FilterStartDate.HasValue || (w.StartDate.HasValue && w.StartDate.Value.Date == FilterStartDate.Value.Date)) &&
+            (!FilterEndDate.HasValue || (w.EndDate.HasValue && w.EndDate.Value.Date == FilterEndDate.Value.Date)) &&
+            (string.IsNullOrWhiteSpace(FilterTotalCost) || w.TotalCostCents.ToString().Contains(FilterTotalCost))
+        );
+
+    // Formatting helpers
+    private static string FormatDate(DateTimeOffset? date)
+        => date?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-";
+
+    private static string FormatCost(int totalCostCents)
+    {
+        decimal dollars = totalCostCents / 100.0m;
+        return dollars.ToString("C");
+    }
+
+    // Central rule: update dates based on status
+    private static void ApplyWorkOrderStatusDates(
+        WorkOrderStatusType? originalStatus,
+        DateTimeOffset? originalStart,
+        DateTimeOffset? originalEnd,
+        WorkOrder wo)
+    {
+        var now = DateTimeOffset.Now;
+
+        switch (wo.Status)
+        {
+            case WorkOrderStatusType.Created:
+                wo.StartDate = null;
+                wo.EndDate = null;
+                break;
+
+            case WorkOrderStatusType.WorkStarted:
+                // Use original if present; otherwise set now
+                wo.StartDate = originalStart ?? wo.StartDate ?? now;
+                wo.EndDate = null;
+                break;
+
+            case WorkOrderStatusType.WorkFinished:
+                // Ensure both timestamps exist
+                wo.StartDate = originalStart ?? wo.StartDate ?? now;
+                wo.EndDate = originalEnd ?? wo.EndDate ?? now;
+                break;
+
+            case WorkOrderStatusType.Closed:
+                // Fill any missing timestamps
+                if (wo.StartDate is null) wo.StartDate = now;
+                if (wo.EndDate is null) wo.EndDate = now;
+                break;
+        }
+    }
+}

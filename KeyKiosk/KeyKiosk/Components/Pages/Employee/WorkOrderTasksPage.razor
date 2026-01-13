@@ -1,0 +1,346 @@
+﻿@page "/employee/WorkOrder/{WorkOrderId:int}/Tasks"
+@rendermode InteractiveServer
+@layout Layout.MainLayout
+@using KeyKiosk.Data
+@attribute [Authorize("Desktop")]
+
+<link href="DesktopShared.css" rel="stylesheet" />
+<link href="EmployeeHomeWorkOrders.css" rel="stylesheet" />
+
+<PageTitle>Work Order Tasks</PageTitle>
+
+<h2 style="text-align:center">Work Order Details</h2>
+<hr />
+
+@if (WorkOrder is null)
+{
+    <!-- Loading state -->
+    <p>Loading…</p>
+}
+else
+{
+    <!-- Header summary and inline edit -->
+    <div class="card-like" style="padding:1rem;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:1rem;">
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+
+            <!-- Left: labels and values -->
+            <div style="display:flex;gap:1.25rem;flex-wrap:wrap;align-items:center;">
+                <div>
+                    <div class="muted" style="font-size:.9rem;color:#6b7280;">Work Order</div>
+                    <div class="h5" style="margin:0;font-weight:600;">#@WorkOrder.Id</div>
+                </div>
+
+                @if (!IsEditingHeader)
+                {
+                    <!-- Read-only header -->
+                    <div>
+                        <div class="muted" style="font-size:.9rem;color:#6b7280;">Customer</div>
+                        <div class="fw-semibold">@WorkOrder.CustomerName</div>
+                    </div>
+                    <div>
+                        <div class="muted" style="font-size:.9rem;color:#6b7280;">Vehicle Plate</div>
+                        <div class="fw-semibold">@WorkOrder.VehiclePlate</div>
+                    </div>
+                    <div>
+                        <div class="muted" style="font-size:.9rem;color:#6b7280;">Status</div>
+                        <span class="tag @(WorkOrder.Status is WorkOrderStatusType.Closed ? "tag-ok" : (WorkOrder.Status is WorkOrderStatusType.WorkStarted ? "tag-warn" : "tag-info"))">
+                            @WorkOrder.Status
+                        </span>
+                    </div>
+                }
+                else
+                {
+                    <!-- Editable header -->
+                    <div>
+                        <div class="muted" style="font-size:.9rem;color:#6b7280;">Customer</div>
+                        <InputText class="table-input input-elevated" @bind-Value="HeaderCustomerDraft" />
+                    </div>
+                    <div>
+                        <div class="muted" style="font-size:.9rem;color:#6b7280;">Vehicle Plate</div>
+                        <InputText class="table-input input-elevated" @bind-Value="HeaderVehicleDraft" />
+                    </div>
+                    <div>
+                        <div class="muted" style="font-size:.9rem;color:#6b7280;">Status</div>
+                        <InputSelect class="table-select input-elevated" @bind-Value="HeaderStatusDraft">
+                            @foreach (WorkOrderStatusType s in Enum.GetValues(typeof(WorkOrderStatusType)))
+                            {
+                                <option value="@s">@s</option>
+                            }
+                        </InputSelect>
+                    </div>
+                }
+
+                <!-- Timestamps + total -->
+                <div>
+                    <div class="muted" style="font-size:.9rem;color:#6b7280;">Start → End</div>
+                    <div class="fw-semibold">@FormatDateTime(WorkOrder.StartDate) → @FormatDateTime(WorkOrder.EndDate)</div>
+                </div>
+                <div>
+                    <div class="muted" style="font-size:.9rem;color:#6b7280;">Total</div>
+                    <div class="fw-semibold">@FormatCost(WorkOrder.TotalCostCents)</div>
+                </div>
+            </div>
+
+            <!-- Header actions -->
+            <div style="display:flex;gap:.5rem;align-items:center;">
+                @if (!IsEditingHeader)
+                {
+                    <button class="edit-btn" @onclick="BeginEditHeader">Edit Header</button>
+                }
+                else
+                {
+                    <button class="save-btn" @onclick="SaveHeaderAsync">Save</button>
+                    <button class="cancel-btn" @onclick="CancelEditHeader">Cancel</button>
+                }
+
+                <!-- Generate PDF and (future) archive -->
+                <button class="btn-primary" @onclick="GenerateWorkOrderDoc">Generate Work Order</button>
+                <button class="delete-btn" disabled>Archive Work Order</button>
+            </div>
+        </div>
+
+        <!-- Details text with inline edit -->
+        <div style="margin-top:.75rem;">
+            @if (!IsEditingWoDetails)
+            {
+                <div class="muted" style="color:#4b5563;white-space:pre-wrap;">
+                    @(string.IsNullOrWhiteSpace(WorkOrder.Details) ? "(No details yet)" : WorkOrder.Details)
+                </div>
+                <div style="margin-top:.5rem;">
+                    <button class="edit-btn small-btn" type="button" @onclick="BeginEditWoDetails">Edit Details</button>
+                </div>
+            }
+            else
+            {
+                <form @onsubmit="SaveWoDetailsAsync" @onsubmit:preventDefault>
+                    <div style="display:grid;gap:.5rem;">
+                        <textarea class="table-input input-elevated" style="min-height:120px;" @bind="WoDetailsDraft"></textarea>
+                        <div style="display:flex;gap:.5rem;justify-content:flex-end;">
+                            <button class="save-btn small-btn" type="submit">Save</button>
+                            <button class="cancel-btn small-btn" type="button" @onclick="CancelEditWoDetails">Cancel</button>
+                        </div>
+                    </div>
+                </form>
+            }
+        </div>
+    </div>
+
+    <!-- Tasks toolbar -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:.25rem 0 .75rem;">
+        <h2 style="margin:0">Tasks</h2>
+        <div style="display:flex;gap:.5rem;align-items:center;">
+            <!-- Search tasks -->
+            <input class="table-input input-elevated" style="min-width:260px" placeholder="Search task title/details"
+                   @bind="TaskSearch" @bind:event="oninput" />
+            <!-- Toggle add task panel -->
+            <button class="btn-primary" @onclick="ToggleAddForm">@((ShowAddForm ? "Close" : "Add Task"))</button>
+        </div>
+    </div>
+
+    <!-- Add task from template -->
+    @if (ShowAddForm)
+    {
+        <div class="card-like" style="padding:1rem;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:1rem;">
+            <EditForm Model="@TaskToAdd" OnValidSubmit="@AddNewTask">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:.75rem;">
+                    <div style="grid-column: span 2;">
+                        <label class="muted">Task</label>
+                        <select class="table-select input-elevated" @onchange="ModifyCreateTaskFromTemplate">
+                            <option value="">— Select —</option>
+                            @foreach (var t in TemplateList)
+                            {
+                                <option value="@t.Id">@t.TaskTitle</option>
+                            }
+                        </select>
+                    </div>
+                    <div style="grid-column: span 3;">
+                        <label class="muted">Details</label>
+                        <InputTextArea class="table-input input-elevated" @bind-Value="TaskToAdd.Details" />
+                    </div>
+                    <div>
+                        <label class="muted">Cost (¢)</label>
+                        <InputNumber class="table-input input-elevated" @bind-Value="TaskToAdd.CostCents" disabled />
+                    </div>
+                    <div style="grid-column: span 6;text-align:right;">
+                        <button class="btn-primary" type="submit">Add Task</button>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    }
+
+    <!-- Tasks table with inline edit -->
+    <div class="workorders-table-container">
+        <table class="workorders-table">
+            <thead>
+                <tr>
+                    <th>Id</th>
+                    <th>Title</th>
+                    <th>Details</th>
+                    <th>Cost</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Status</th>
+                    <th>Hours</th>
+                    <th style="width:1%;">Actions</th>
+                </tr>
+                <!-- Task filters -->
+                <tr>
+                    <th></th>
+                    <th><input class="table-input input-elevated" placeholder="Filter title" @bind="FilterTitle" @bind:event="oninput" /></th>
+                    <th><input class="table-input input-elevated" placeholder="Filter details" @bind="FilterDetails" @bind:event="oninput" /></th>
+                    <th><input class="table-input input-elevated" placeholder="¢" @bind="FilterCost" @bind:event="oninput" /></th>
+                    <th><input class="table-input input-elevated" type="date" @bind="FilterStart" /></th>
+                    <th><input class="table-input input-elevated" type="date" @bind="FilterEnd" /></th>
+                    <th>
+                        <select class="table-select input-elevated" @bind="FilterStatus">
+                            <option value="">All</option>
+                            @foreach (WorkOrderTaskStatusType s in Enum.GetValues(typeof(WorkOrderTaskStatusType)))
+                            {
+                                <option value="@s">@s</option>
+                            }
+                        </select>
+                    </th>
+                    <th></th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var t in FilteredTasks)
+                {
+                    bool isEditing = EditingTaskId == t.Id;
+                    <tr>
+                        <td>@t.Id</td>
+
+                        <!-- Title is never editable inline -->
+                        <td>@t.Title</td>
+
+                        <!-- Details editable when editing -->
+                        <td>
+                            @if (isEditing)
+                            {
+                                <InputTextArea class="table-input input-elevated" @bind-Value="EditingModel.Details" />
+                            }
+                            else
+                            {
+
+                                @t.Details
+                            }
+                        </td>
+
+                        <!-- Cost is read-only here -->
+                        <td>@FormatCost(t.CostCents)</td>
+
+                        <!-- Date columns readonly -->
+                        <td>@FormatDateTime(t.StartDate)</td>
+                        <td>@FormatDateTime(t.EndDate)</td>
+
+                        <!-- Status editable when editing -->
+                        <td>
+                            @if (isEditing)
+                            {
+                                <select class="table-select input-elevated" @bind="EditingModel.Status">
+                                    @foreach (WorkOrderTaskStatusType s in Enum.GetValues(typeof(WorkOrderTaskStatusType)))
+                                    {
+                                        <option value="@s">@s</option>
+                                    }
+                                </select>
+                            }
+                            else
+                            {
+
+                                @t.Status
+                            }
+                        </td>
+
+                        <!-- Hours editable when editing -->
+                        <td style="text-align:right;min-width:90px;">
+                            @if (isEditing)
+                            {
+                                <InputNumber class="table-input input-elevated" @bind-Value="EditingModel.HoursForCompletion" />
+                            }
+                            else
+                            {
+
+                                @t.HoursForCompletion
+                            }
+                        </td>
+
+                        <!-- Row actions -->
+                        <td style="white-space:nowrap;">
+                            @if (isEditing)
+                            {
+                                <button class="save-btn small-btn" @onclick="SaveTaskAsync">Save</button>
+                                <button class="cancel-btn small-btn" @onclick="CancelEditTask">Cancel</button>
+                            }
+                            else
+                            {
+                                <button class="edit-btn small-btn" @onclick="() => BeginEditTask(t)">Edit</button>
+                                <button class="delete-btn small-btn" @onclick="() => DeleteTask(t.Id)">Delete</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <!-- Parts section below tasks -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:1rem 0 .5rem;">
+            <h2 style="margin:0">Parts</h2>
+            <input class="table-input input-elevated" style="min-width:260px" placeholder="Search parts"
+                   @bind="PartFilter" @bind:event="oninput" />
+        </div>
+
+        <!-- Add part from template -->
+        <div class="card-like" style="padding:1rem;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:1rem;">
+            <form @onsubmit="AddPartFromTemplate" @onsubmit:preventDefault>
+                <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:.75rem;">
+                    <div style="grid-column: span 4;">
+                        <label class="muted">Part Template</label>
+                        <select class="table-select input-elevated" @bind="SelectedPartTemplateId">
+                            <option value="">— Select a part template —</option>
+                            @foreach (var pt in PartTemplateList)
+                            {
+                                <option value="@pt.Id">@pt.PartName (@FormatCost(pt.CostCents))</option>
+                            }
+                        </select>
+                    </div>
+                    <div style="grid-column: span 2; align-self:end; text-align:right;">
+                        <button class="btn-primary" type="submit" disabled="@(!SelectedPartTemplateId.HasValue)">Add Part</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Parts table -->
+        <div class="workorders-table-container">
+            <table class="workorders-table">
+                <thead>
+                    <tr>
+                        <th>Id</th>
+                        <th>Part Name</th>
+                        <th>Details</th>
+                        <th>Cost</th>
+                        <th style="width:1%;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in FilteredParts)
+                    {
+                        <tr>
+                            <td>@p.Id</td>
+                            <td>@p.PartName</td>
+                            <td>@p.Details</td>
+                            <td>@FormatCost(p.CostCents)</td>
+                            <td style="white-space:nowrap;">
+                                <button class="delete-btn small-btn" @onclick="() => DeletePart(p.Id)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

@@ -1,0 +1,33 @@
+﻿@implements IDisposable
+@inject NavigationManager NavigationManager
+
+<!-- Top navigation bar -->
+<header class="top-nav">
+    <div class="nav-left">
+        <NavLink href="employee/home" class="nav-link" Match="NavLinkMatch.All">
+            Home
+        </NavLink>
+    </div>
+    <div class="nav-center">
+        <img src="images/KEYOSK_icon.png" alt="KeyOSk Logo" class="nav-logo" />
+    </div>
+    <div class="nav-right"></div>
+</header>
+
+@code {
+    private string? currentUrl;
+    protected override void OnInitialized()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}
