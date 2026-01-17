@@ -1,0 +1,1 @@
+Project demonstrating usage of RESTful APIs with role based access. Please use an app like Postman to access endpoints. All available endpoints are in the controller files under the Controllers folder. You will need to change roles using the H2 console if you want to access ADMIN specific URLs.
