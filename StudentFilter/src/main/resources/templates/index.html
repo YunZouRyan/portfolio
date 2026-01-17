@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Exercise 3_1</title>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+<div class="container">
+
+  <br>
+  <br>
+
+  <h1>Student Management System</h1>
+
+  <br>
+
+  <form method="get" action="filter">
+    <div class="form-group">
+      <label>Enrolled After</label>
+      <input class="form-control" type="date" name="enrollmentDate">
+    </div>
+    <div class="form-group">
+      <label>GPA Above</label>
+      <input class="form-control" type="number" step=".01" name="minGpa">
+    </div>
+    <div class="form-group">
+      <label>Program</label>
+      <select class="form-control" name="program">
+        <option value="0">Select an Option</option>
+        <option th:each="s : ${studentList}" th:value="${s.program}" th:text="${s.program}"></option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Name Contains (Case Sensitive) (Will return all students if no student is found)</label>
+      <input class="form-control" type="text" name="nameContains">
+    </div>
+    <div class="form-group">
+      <label>GPA Range</label>
+      <input class="form-control" type="number" step=".01" name="minGpaRange" placeholder="Min">
+      <br>
+      <input class="form-control" type="number" step=".01" name="maxGpaRange" placeholder="Max">
+    </div>
+    <input type="submit" class="btn btn-primary" value="Submit">
+  </form>
+
+  <br>
+  <br>
+
+  <h3>Filtered Student List</h3>
+
+  <br>
+
+  <table class="table" th:if="${filteredList != null}">
+    <tr>
+      <th scope="col">Id</th>
+      <th scope="col">Name</th>
+      <th scope="col">Email</th>
+      <th scope="col">Enrollment Date</th>
+      <th scope="col">GPA</th>
+      <th scope="col">Program</th>
+    </tr>
+    <tr th:each="s : ${filteredList}">
+      <td th:text="${s.id}"></td>
+      <td th:text="${s.name}"></td>
+      <td th:text="${s.email}"></td>
+      <td th:text="${s.enrollmentDate}"></td>
+      <td th:text="${s.gpa}"></td>
+      <td th:text="${s.program}"></td>
+    </tr>
+  </table>
+
+  <br>
+  <br>
+
+  <h3>All Students</h3>
+  <table class="table" th:if="${studentList != null}">
+    <tr>
+      <th scope="col">Id</th>
+      <th scope="col">Name</th>
+      <th scope="col">Email</th>
+      <th scope="col">Enrollment Date</th>
+      <th scope="col">GPA</th>
+      <th scope="col">Program</th>
+    </tr>
+    <tr th:each="s : ${studentList}">
+      <td th:text="${s.id}"></td>
+      <td th:text="${s.name}"></td>
+      <td th:text="${s.email}"></td>
+      <td th:text="${s.enrollmentDate}"></td>
+      <td th:text="${s.gpa}"></td>
+      <td th:text="${s.program}"></td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>
